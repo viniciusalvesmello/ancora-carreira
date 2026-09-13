@@ -219,6 +219,7 @@ function renderHome() {
 
     app.innerHTML = `
       <section class="hero">
+        <p class="eyebrow">Autoconhecimento profissional</p>
         <h1>Âncoras de Carreira</h1>
         <p>Na década de 1970, Edgar Schein, professor da Sloan School of Management (MIT), desenvolveu a teoria das âncoras de carreira: oito pilares que orientam as decisões profissionais de cada pessoa. Este teste ajuda você a descobrir quais delas mais pesam nas suas escolhas.</p>
       </section>
@@ -245,6 +246,7 @@ function renderHome() {
         <div class="card elev-sm">
           <span class="card-kicker">Âncora ${letter}</span>
           <span class="card-title">${CAREER_ANCHORS[letter].name}</span>
+          <p class="card-body">${CAREER_ANCHORS[letter].summary}</p>
         </div>`
         ).join('')}
       </div>
@@ -410,6 +412,7 @@ function renderResult() {
     const hasSecondary = secondary && averages[secondary] !== averages[dominant];
 
     app.innerHTML = `
+      <p class="eyebrow">Seu relatório de âncoras</p>
       <h1>Seu resultado</h1>
       <p class="text-muted">Sua âncora dominante é <strong>${CAREER_ANCHORS[dominant].name}</strong>${
         hasSecondary ? `, com <strong>${CAREER_ANCHORS[secondary].name}</strong> logo atrás` : ''

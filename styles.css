@@ -303,13 +303,30 @@ medida fixa fora deles. Ver AGENTS.md.
 .page { min-height: 100vh; }
 .shell { max-width: 760px; margin: 0 auto; padding: 0 var(--space-4) var(--space-8); }
 
+/* — cabeçalho persistente (wordmark + regra esmaecida + tag) — */
+.app-header { display: flex; align-items: baseline; gap: 14px; margin: var(--space-8) 0 var(--space-6); }
+.wordmark { font-family: var(--font-heading); font-weight: 500; font-size: 15px; letter-spacing: 0.22em; color: var(--color-text); }
+.app-tag { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-neutral-500); }
+.app-header .hr-fade { flex: 1; }
+.hr-fade {
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent, var(--color-divider) 48px,
+    var(--color-divider) calc(100% - 48px), transparent);
+}
+
+.eyebrow {
+  display: block; margin: 0 0 var(--space-2); font-size: 12px;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-accent-300);
+}
+
 #app { opacity: 0; transform: translateY(4px); transition: opacity 220ms ease, transform 220ms ease; }
 #app.is-visible { opacity: 1; transform: translateY(0); }
 @media (prefers-reduced-motion: reduce) {
   #app { transition: none; }
 }
 
-.hero { margin: var(--space-8) 0 var(--space-6); }
+.hero { margin: 0 0 var(--space-6); }
 .hero p { font-size: 16px; opacity: 0.85; max-width: 60ch; }
 
 .resume-banner {
