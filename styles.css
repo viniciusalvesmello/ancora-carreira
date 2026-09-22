@@ -375,6 +375,11 @@ medida fixa fora deles. Ver AGENTS.md.
 .quiz-card-number { font-size: 11px; }
 .quiz-card-text { font-size: 15px; opacity: 1; }
 .quiz-card-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
+/* O .card pai estica o .seg pra largura toda (align-items: stretch), mas o
+   .seg em si só organiza o conteúdo pelo tamanho natural dele — sem isso as
+   6 opções de nota ficam coladas à esquerda com um vão vazio depois. */
+.quiz-card .seg { display: flex; }
+.quiz-card .seg-opt { flex: 1; justify-content: center; }
 
 .bonus-toggle {
   appearance: none; border: 1px solid transparent; background: transparent;
