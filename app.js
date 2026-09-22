@@ -87,7 +87,17 @@ function answeredCount() {
 
 function clampBlockIndex(value) {
   const n = typeof value === 'number' && Number.isFinite(value) ? value : 0;
-  return Math.min(Math.max(n, 0), TOTAL_BLOCKS - 1);
+  // TOTAL_BLOCKS (um além do último bloco de perguntas) é a etapa de revisão do bônus.
+  return Math.min(Math.max(n, 0), TOTAL_BLOCKS);
+}
+
+// Afirmações elegíveis pro bônus: nota 4 ou mais, da mais alta pra mais baixa.
+function bonusCandidates() {
+  return QUESTIONS.filter((q) => (state.ratings[q.number] || 0) >= 4).sort((a, b) => {
+    const diff = (state.ratings[b.number] || 0) - (state.ratings[a.number] || 0);
+    if (diff !== 0) return diff;
+    return a.number - b.number;
+  });
 }
 
 // ---------- Cálculo de score ----------
@@ -263,7 +273,7 @@ function renderHome() {
       <h2>Como funciona</h2>
       <ol class="steps">
         <li>Responda em blocos de 4 afirmações por vez (${TOTAL_BLOCKS} blocos ao todo), dando uma nota de 1 a 6 pra cada uma conforme o quanto ela é verdadeira pra você.</li>
-        <li>Ao longo do caminho, marque as 3 afirmações mais verdadeiras entre as que você pontuou mais alto — elas ganham 4 pontos extra cada e liberam o resultado no último bloco.</li>
+        <li>No final, revise só as afirmações que você pontuou 4 ou mais, da mais alta pra mais baixa, e marque as 3 mais verdadeiras — elas ganham 4 pontos extra cada.</li>
         <li>Veja o resultado: a média de cada uma das 8 âncoras e qual delas mais te representa.</li>
       </ol>
     `;
@@ -294,25 +304,35 @@ function renderHome() {
 
 function questionCardHTML(q) {
   const rating = state.ratings[q.number];
-  const isBonus = state.bonus.includes(q.number);
-  const bonusDisabled = !isBonus && state.bonus.length >= BONUS_LIMIT;
   return `
     <li class="card quiz-card elev-sm" data-question="${q.number}">
       <span class="card-kicker quiz-card-number">Pergunta ${q.number}</span>
       <p class="card-body quiz-card-text">${q.text}</p>
+      <div class="seg" role="radiogroup" aria-label="Nota da pergunta ${q.number}, de 1 a 6">
+        ${[1, 2, 3, 4, 5, 6]
+          .map(
+            (value) => `
+          <label class="seg-opt">
+            <input type="radio" name="q${q.number}" value="${value}" ${rating === value ? 'checked' : ''} />${value}
+          </label>`
+          )
+          .join('')}
+      </div>
+    </li>
+  `;
+}
+
+function bonusCandidateHTML(q, requiredBonus) {
+  const rating = state.ratings[q.number];
+  const isBonus = state.bonus.includes(q.number);
+  const disabled = !isBonus && state.bonus.length >= requiredBonus;
+  return `
+    <li class="card quiz-card elev-sm" data-question="${q.number}">
+      <span class="card-kicker quiz-card-number">Pergunta ${q.number} · nota ${rating}</span>
+      <p class="card-body quiz-card-text">${q.text}</p>
       <div class="quiz-card-row">
-        <div class="seg" role="radiogroup" aria-label="Nota da pergunta ${q.number}, de 1 a 6">
-          ${[1, 2, 3, 4, 5, 6]
-            .map(
-              (value) => `
-            <label class="seg-opt">
-              <input type="radio" name="q${q.number}" value="${value}" ${rating === value ? 'checked' : ''} />${value}
-            </label>`
-            )
-            .join('')}
-        </div>
-        <button type="button" class="tag bonus-toggle ${isBonus ? 'tag-accent' : 'tag-outline'}" data-bonus="${q.number}" ${bonusDisabled ? 'disabled' : ''}>
-          ${isBonus ? '★ +4 pontos' : '☆ Uma das 3 mais verdadeiras'}
+        <button type="button" class="tag bonus-toggle ${isBonus ? 'tag-accent' : 'tag-outline'}" data-bonus="${q.number}" ${disabled ? 'disabled' : ''}>
+          ${isBonus ? '★ +4 pontos' : '☆ Marcar como mais verdadeira'}
         </button>
       </div>
     </li>
@@ -329,6 +349,14 @@ function isBlockComplete(blockQuestions) {
 }
 
 function renderQuiz() {
+  if (state.blockIndex >= TOTAL_BLOCKS) {
+    renderBonusStep();
+  } else {
+    renderQuestionBlock();
+  }
+}
+
+function renderQuestionBlock() {
   paint(() => {
     const blockQuestions = currentBlockQuestions();
     const isFirstBlock = state.blockIndex === 0;
@@ -343,19 +371,17 @@ function renderQuiz() {
       </div>
       <div class="progress-track"><span class="progress-fill" style="width: ${percentDone}%"></span></div>
 
-      <p class="quiz-hint">Dê uma nota de 1 a 6 pra cada afirmação — 1 nunca é verdadeira pra você, 6 é sempre verdadeira. Marque com ☆ as que forem uma das 3 mais verdadeiras pra ganhar pontos extra.</p>
+      <p class="quiz-hint">Dê uma nota de 1 a 6 pra cada afirmação — 1 nunca é verdadeira pra você, 6 é sempre verdadeira.</p>
 
       <ul class="quiz-list">
         ${blockQuestions.map((q) => questionCardHTML(q)).join('')}
       </ul>
 
-      <p class="text-muted quiz-bonus-note">Bônus marcados: ${state.bonus.length}/${BONUS_LIMIT}</p>
-
       <div class="quiz-nav no-print">
         <button type="button" class="btn btn-ghost" id="back-btn" ${isFirstBlock ? 'disabled' : ''}>Voltar</button>
         <div class="quiz-nav-secondary">
           <button type="button" class="btn btn-ghost" id="restart-btn">Reiniciar</button>
-          <button type="button" class="btn btn-primary" id="next-btn">${isLastBlock ? 'Ver resultado' : 'Próximo'}</button>
+          <button type="button" class="btn btn-primary" id="next-btn">${isLastBlock ? 'Continuar' : 'Próximo'}</button>
         </div>
       </div>
     `;
@@ -365,36 +391,17 @@ function renderQuiz() {
     const backBtn = document.getElementById('back-btn');
     const restartBtn = document.getElementById('restart-btn');
 
-    function canAdvance() {
-      if (!isBlockComplete(blockQuestions)) return false;
-      return !isLastBlock || state.bonus.length === BONUS_LIMIT;
-    }
-
     function refreshNav() {
-      nextBtn.disabled = !canAdvance();
+      nextBtn.disabled = !isBlockComplete(blockQuestions);
     }
     refreshNav();
-
-    function refreshBonusButtons() {
-      list.querySelectorAll('[data-bonus]').forEach((btn) => {
-        const number = Number(btn.dataset.bonus);
-        const isBonus = state.bonus.includes(number);
-        const disabled = !isBonus && state.bonus.length >= BONUS_LIMIT;
-        btn.classList.toggle('tag-accent', isBonus);
-        btn.classList.toggle('tag-outline', !isBonus);
-        btn.disabled = disabled;
-        btn.textContent = isBonus ? '★ +4 pontos' : '☆ Uma das 3 mais verdadeiras';
-      });
-      document.querySelector('.quiz-bonus-note').textContent = `Bônus marcados: ${state.bonus.length}/${BONUS_LIMIT}`;
-    }
 
     function scheduleAutoAdvance() {
       if (autoAdvanceTimer) {
         clearTimeout(autoAdvanceTimer);
         autoAdvanceTimer = null;
       }
-      // No último bloco não avança sozinho: falta conferir o bônus antes do resultado.
-      if (!isLastBlock && isBlockComplete(blockQuestions)) {
+      if (isBlockComplete(blockQuestions)) {
         autoAdvanceTimer = setTimeout(goNext, AUTO_ADVANCE_MS);
       }
     }
@@ -409,35 +416,13 @@ function renderQuiz() {
       scheduleAutoAdvance();
     });
 
-    list.addEventListener('click', (event) => {
-      const btn = event.target.closest('[data-bonus]');
-      if (!btn || btn.disabled) return;
-      const number = Number(btn.dataset.bonus);
-      const idx = state.bonus.indexOf(number);
-      if (idx >= 0) {
-        state.bonus.splice(idx, 1);
-      } else if (state.bonus.length < BONUS_LIMIT) {
-        state.bonus.push(number);
-      } else {
-        return;
-      }
-      saveProgress();
-      refreshBonusButtons();
-      refreshNav();
-    });
-
     function goNext() {
       if (autoAdvanceTimer) {
         clearTimeout(autoAdvanceTimer);
         autoAdvanceTimer = null;
       }
-      if (!canAdvance()) return;
-      if (isLastBlock) {
-        safeStorage.clear();
-        renderResult();
-        return;
-      }
-      state.blockIndex += 1;
+      if (!isBlockComplete(blockQuestions)) return;
+      state.blockIndex += 1; // no último bloco isso chega em TOTAL_BLOCKS: a etapa do bônus
       saveProgress();
       renderQuiz();
     }
@@ -453,6 +438,104 @@ function renderQuiz() {
 
     restartBtn.addEventListener('click', () => {
       if (autoAdvanceTimer) clearTimeout(autoAdvanceTimer);
+      confirmReset(() => {
+        state.blockIndex = 0;
+        state.ratings = {};
+        state.bonus = [];
+        safeStorage.clear();
+        renderHome();
+      });
+    });
+  });
+}
+
+function renderBonusStep() {
+  paint(() => {
+    const candidates = bonusCandidates();
+    const requiredBonus = Math.min(BONUS_LIMIT, candidates.length);
+    // Se o usuário voltou e mudou uma nota, um bônus marcado pode não ser mais elegível (nota < 4).
+    state.bonus = state.bonus.filter((n) => candidates.some((q) => q.number === n));
+
+    app.innerHTML = `
+      <div class="quiz-topline">
+        <span class="section-label" style="margin: 0">Revisão final</span>
+        <span class="quiz-percent">100% concluído</span>
+      </div>
+      <div class="progress-track"><span class="progress-fill" style="width: 100%"></span></div>
+
+      <h2>Escolha as ${requiredBonus || 3} mais verdadeiras</h2>
+      <p class="quiz-hint">
+        ${
+          candidates.length === 0
+            ? 'Nenhuma afirmação recebeu nota 4 ou mais, então não há bônus pra marcar — pode seguir direto pro resultado.'
+            : `Aqui estão só as afirmações que você pontuou 4 ou mais, da nota mais alta pra mais baixa. Marque as ${requiredBonus} que são as mais verdadeiras pra você — cada uma ganha 4 pontos extra na conta final.`
+        }
+      </p>
+
+      <ul class="quiz-list">
+        ${candidates.map((q) => bonusCandidateHTML(q, requiredBonus)).join('')}
+      </ul>
+
+      ${candidates.length > 0 ? `<p class="text-muted quiz-bonus-note">Bônus marcados: ${state.bonus.length}/${requiredBonus}</p>` : ''}
+
+      <div class="quiz-nav no-print">
+        <button type="button" class="btn btn-ghost" id="back-btn">Voltar</button>
+        <div class="quiz-nav-secondary">
+          <button type="button" class="btn btn-ghost" id="restart-btn">Reiniciar</button>
+          <button type="button" class="btn btn-primary" id="next-btn" ${state.bonus.length === requiredBonus ? '' : 'disabled'}>Ver resultado</button>
+        </div>
+      </div>
+    `;
+
+    const list = app.querySelector('.quiz-list');
+    const nextBtn = document.getElementById('next-btn');
+    const backBtn = document.getElementById('back-btn');
+    const restartBtn = document.getElementById('restart-btn');
+
+    function refreshBonusUI() {
+      list.querySelectorAll('[data-bonus]').forEach((btn) => {
+        const number = Number(btn.dataset.bonus);
+        const isBonus = state.bonus.includes(number);
+        const disabled = !isBonus && state.bonus.length >= requiredBonus;
+        btn.classList.toggle('tag-accent', isBonus);
+        btn.classList.toggle('tag-outline', !isBonus);
+        btn.disabled = disabled;
+        btn.textContent = isBonus ? '★ +4 pontos' : '☆ Marcar como mais verdadeira';
+      });
+      const note = document.querySelector('.quiz-bonus-note');
+      if (note) note.textContent = `Bônus marcados: ${state.bonus.length}/${requiredBonus}`;
+      nextBtn.disabled = state.bonus.length !== requiredBonus;
+    }
+
+    list.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-bonus]');
+      if (!btn || btn.disabled) return;
+      const number = Number(btn.dataset.bonus);
+      const idx = state.bonus.indexOf(number);
+      if (idx >= 0) {
+        state.bonus.splice(idx, 1);
+      } else if (state.bonus.length < requiredBonus) {
+        state.bonus.push(number);
+      } else {
+        return;
+      }
+      saveProgress();
+      refreshBonusUI();
+    });
+
+    nextBtn.addEventListener('click', () => {
+      if (state.bonus.length !== requiredBonus) return;
+      safeStorage.clear();
+      renderResult();
+    });
+
+    backBtn.addEventListener('click', () => {
+      state.blockIndex = TOTAL_BLOCKS - 1;
+      saveProgress();
+      renderQuiz();
+    });
+
+    restartBtn.addEventListener('click', () => {
       confirmReset(() => {
         state.blockIndex = 0;
         state.ratings = {};

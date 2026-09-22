@@ -46,11 +46,15 @@ querer (ver `app.js`).
   pertence à âncora no índice `(n - 1) % 8` da lista
   `['A','B','C','D','E','F','G','H']` — cada âncora acaba com exatamente 5
   itens (ex.: `A` = itens 1, 9, 17, 25, 33; `H` = itens 8, 16, 24, 32, 40).
-- **Bônus**: ao final, o usuário marca exatamente 3 itens (normalmente os que
-  deu nota mais alta) como "as mais verdadeiras pra ele"; cada um ganha +4
-  pontos extra (`BONUS_POINTS` em `app.js`). `BONUS_LIMIT = 3` é tanto o
-  máximo quanto o mínimo exigido — `canShowResult()` só libera "Ver
-  resultado" com as 40 notas preenchidas **e** os 3 itens de bônus marcados.
+- **Bônus**: depois do último bloco de perguntas, uma tela de revisão
+  (`renderBonusStep` em `app.js`) lista só as afirmações com nota 4 ou mais
+  (`bonusCandidates()`), ordenadas da nota mais alta pra mais baixa — igual
+  à instrução do PDF ("localize os itens em que você deu pontos mais altos
+  ... selecione as três que sejam as mais verdadeiras"). O usuário marca
+  exatamente `Math.min(BONUS_LIMIT, candidatos.length)` itens (normalmente
+  3, mas menos se houver poucas notas altas); cada um marcado ganha +4
+  pontos extra (`BONUS_POINTS`). "Ver resultado" só libera com esse número
+  exato marcado.
 - **Média por âncora**: soma dos 5 itens daquela âncora (nota + bônus quando
   marcado) dividida por 5 (`computeAverages` em `app.js`). A âncora com maior
   média é a dominante; em caso de empate, desempata pela ordem `ANCHOR_ORDER`
@@ -67,12 +71,13 @@ próprio usuário (fórmulas `SOMA`/`÷5` batendo com o que está implementado e
 - `styles.css` — Nocturne (tokens + componentes) + extensões do projeto.
 - `data.js` — todo o conteúdo textual: `CAREER_ANCHORS` (as 8 âncoras) e
   `QUESTIONS` (as 40 afirmações, já com a âncora resolvida).
-- `app.js` — toda a lógica: as 3 telas (home, quiz, resultado), cálculo das
-  médias, persistência em `localStorage`, diálogo de confirmação, compartilhar.
-  O quiz é paginado em blocos de `BLOCK_SIZE = 4` perguntas
-  (`TOTAL_BLOCKS = 10`), com barra de progresso e navegação Voltar/Próximo —
-  avança sozinho ao terminar um bloco (menos o último, que espera o clique
-  em "Ver resultado" pra dar tempo de conferir o bônus).
+- `app.js` — toda a lógica: as telas (home, quiz, revisão do bônus,
+  resultado), cálculo das médias, persistência em `localStorage`, diálogo de
+  confirmação, compartilhar. O quiz é paginado em blocos de `BLOCK_SIZE = 4`
+  perguntas (`TOTAL_BLOCKS = 10`), com barra de progresso e navegação
+  Voltar/Próximo — avança sozinho ao terminar um bloco, inclusive o último,
+  que leva pra etapa de revisão do bônus (`state.blockIndex === TOTAL_BLOCKS`
+  é o sinal de que a pessoa está nessa etapa, não mais num bloco de perguntas).
 
 Não há `package.json` nem etapa de build. O app abre direto pelo
 `index.html` ou por qualquer servidor estático.
@@ -102,8 +107,9 @@ em alguns navegadores).
   alterar a tela de resultado — botões de ação e navegação devem ter a
   classe `no-print`.
 - A escala 1–6 de cada pergunta é um `.seg` com `<input type="radio">`
-  nativo (sem JS de estado visual); o marcador de bônus é um `<button>` com
-  classes `.tag`/`.tag-outline`/`.tag-accent`, não um novo componente.
+  nativo (sem JS de estado visual); o marcador de bônus (só na etapa de
+  revisão final) é um `<button>` com classes `.tag`/`.tag-outline`/
+  `.tag-accent`, não um novo componente.
 - Confirmações destrutivas (reiniciar o teste) usam `openDialog(...)`
   (`.dialog-backdrop`/`.dialog` do design system), não `window.confirm()`.
 
@@ -113,15 +119,19 @@ Não há suíte de testes automatizados persistida no repositório. Ao mexer no
 código, valide manualmente — ou com o MCP do Playwright/Browser, se
 disponível — percorrendo:
 
-1. Fluxo completo: home → 10 blocos de 4 perguntas → resultado. "Próximo"
-   só habilita com as 4 notas do bloco atual preenchidas, e avança sozinho
-   pouco depois de a última ficar completa; "Voltar" funciona em qualquer
-   bloco que não seja o primeiro e preserva as respostas já dadas.
-2. No último bloco, "Ver resultado" só habilita com as 40 notas preenchidas
-   **e** exatamente 3 itens de bônus marcados (em qualquer bloco); um 4º
-   item de bônus não pode ser marcado enquanto 3 já estiverem marcados;
-   desmarcar um bônus (ficando com menos de 3) desabilita "Ver resultado"
-   de novo, e o último bloco não avança sozinho — espera o clique manual.
+1. Fluxo completo: home → 10 blocos de 4 perguntas → revisão do bônus →
+   resultado. "Próximo" só habilita com as 4 notas do bloco atual
+   preenchidas, e avança sozinho pouco depois de a última ficar completa
+   (inclusive do último bloco pra revisão do bônus); "Voltar" funciona em
+   qualquer bloco que não seja o primeiro e preserva as respostas já dadas.
+2. Na revisão do bônus: só aparecem afirmações com nota 4 ou mais, ordenadas
+   da nota mais alta pra mais baixa; "Ver resultado" só habilita com
+   exatamente 3 marcadas (ou o total de candidatas, se houver menos de 3);
+   um item a mais não pode ser marcado além do limite; desmarcar um (ficando
+   abaixo do número exigido) desabilita "Ver resultado" de novo; "Voltar"
+   leva de volta ao último bloco de perguntas, preservando os bônus já
+   marcados. Testar também o caso raro de nenhuma nota ≥ 4 (mensagem
+   avisando que não há bônus, sem exigir nenhuma marcação).
 3. Na tela de resultado, os cards de "Descrição das 8 âncoras" aparecem na
    mesma ordem das barras/tabela — da maior média pra menor, não na ordem
    fixa A→H.
