@@ -1,0 +1,50 @@
+name: Deploy to GitHub Pages
+
+# Publica o site estático no GitHub Pages a cada push na main. O único
+# "processamento" é trocar __ASSET_VERSION__ pelo SHA curto do commit em
+# index.html, pra forçar o navegador a buscar app.js/data.js/styles.css de
+# novo a cada deploy (sem isso, o cache do navegador/CDN pode segurar a
+# versão antiga por um tempo). Não há bundler, transpiler nem dependências —
+# o projeto continua HTML/CSS/JS puro; isso só automatiza o cache-busting no
+# deploy. Ver AGENTS.md.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache-bust assets com o SHA do commit
+        run: |
+          VERSION="${GITHUB_SHA::8}"
+          sed -i "s/__ASSET_VERSION__/${VERSION}/g" index.html
+
+      - name: Configurar Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload do artefato
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -79,8 +79,30 @@ próprio usuário (fórmulas `SOMA`/`÷5` batendo com o que está implementado e
   que leva pra etapa de revisão do bônus (`state.blockIndex === TOTAL_BLOCKS`
   é o sinal de que a pessoa está nessa etapa, não mais num bloco de perguntas).
 
-Não há `package.json` nem etapa de build. O app abre direto pelo
+Não há `package.json` nem etapa de build local. O app abre direto pelo
 `index.html` ou por qualquer servidor estático.
+
+## Deploy e cache-busting
+
+O `index.html` referencia `styles.css`, `data.js` e `app.js` com
+`?v=__ASSET_VERSION__` em vez de um número fixo. Esse placeholder só existe
+pro deploy: `.github/workflows/deploy-pages.yml` roda a cada push na `main`,
+troca `__ASSET_VERSION__` pelo SHA curto do commit (`sed`, sem bundler nem
+dependência nenhuma) e publica no GitHub Pages via
+`actions/upload-pages-artifact` + `actions/deploy-pages`. Isso faz o
+navegador buscar os arquivos de novo a cada deploy, em vez de segurar uma
+versão antiga em cache — sem isso, quem já tinha aberto o site antes só via
+a mudança depois de um hard refresh.
+
+Por causa disso, a fonte do GitHub Pages no repositório **precisa** estar
+configurada como "GitHub Actions" (não "Deploy from a branch") — já foi
+trocado via API (`build_type: workflow`), mas se algum dia voltar pro modo
+antigo, o workflow para de ter efeito e o cache-busting some.
+
+Rodando localmente (`file://` ou servidor estático), o placeholder
+`__ASSET_VERSION__` nunca é substituído — os navegadores ignoram a query
+string ao resolver o arquivo, então tudo funciona normalmente, só sem
+cache-busting (não é necessário em dev).
 
 ## Como rodar localmente
 
@@ -157,3 +179,6 @@ disponível — percorrendo:
   sistema é mono-acento de propósito).
 - Adicionar build tooling (bundler, transpiler, framework de app) sem uma
   razão explícita.
+- Trocar `?v=__ASSET_VERSION__` por um número fixo em `index.html`, ou
+  apagar `.github/workflows/deploy-pages.yml` — isso desativa o
+  cache-busting automático do deploy (ver "Deploy e cache-busting" acima).
