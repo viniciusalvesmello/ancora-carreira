@@ -5,14 +5,18 @@
 
 const STORAGE_KEY = 'ancora-carreira-progress-v1';
 const TOTAL_QUESTIONS = QUESTIONS.length;
+const BLOCK_SIZE = 4;
+const TOTAL_BLOCKS = Math.ceil(TOTAL_QUESTIONS / BLOCK_SIZE);
 const BONUS_LIMIT = 3;
 const BONUS_POINTS = 4;
 const ANCHOR_ORDER = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 const FADE_MS = 220;
+const AUTO_ADVANCE_MS = 260;
 
 const app = document.getElementById('app');
 
 const state = {
+  blockIndex: 0,
   ratings: {}, // { [questionNumber]: 1..6 }
   bonus: [], // números de pergunta marcados como bônus (precisa ter exatamente BONUS_LIMIT pra liberar o resultado)
 };
@@ -62,7 +66,7 @@ const safeStorage = {
 };
 
 function saveProgress() {
-  safeStorage.set({ ratings: state.ratings, bonus: state.bonus });
+  safeStorage.set({ blockIndex: state.blockIndex, ratings: state.ratings, bonus: state.bonus });
 }
 
 function isValidProgress(saved) {
@@ -79,6 +83,11 @@ function isValidProgress(saved) {
 
 function answeredCount() {
   return Object.keys(state.ratings).length;
+}
+
+function clampBlockIndex(value) {
+  const n = typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  return Math.min(Math.max(n, 0), TOTAL_BLOCKS - 1);
 }
 
 // ---------- Cálculo de score ----------
@@ -253,8 +262,8 @@ function renderHome() {
 
       <h2>Como funciona</h2>
       <ol class="steps">
-        <li>Leia as 40 afirmações e dê uma nota de 1 a 6 pra cada uma, conforme o quanto ela é verdadeira pra você.</li>
-        <li>No final, marque as 3 afirmações mais verdadeiras entre as que você pontuou mais alto — elas ganham 4 pontos extra cada e liberam o resultado.</li>
+        <li>Responda em blocos de 4 afirmações por vez (${TOTAL_BLOCKS} blocos ao todo), dando uma nota de 1 a 6 pra cada uma conforme o quanto ela é verdadeira pra você.</li>
+        <li>Ao longo do caminho, marque as 3 afirmações mais verdadeiras entre as que você pontuou mais alto — elas ganham 4 pontos extra cada e liberam o resultado no último bloco.</li>
         <li>Veja o resultado: a média de cada uma das 8 âncoras e qual delas mais te representa.</li>
       </ol>
     `;
@@ -263,6 +272,7 @@ function renderHome() {
       document.getElementById('resume-btn').addEventListener('click', () => {
         state.ratings = { ...saved.ratings };
         state.bonus = [...saved.bonus];
+        state.blockIndex = clampBlockIndex(saved.blockIndex);
         renderQuiz();
       });
       document.getElementById('discard-btn').addEventListener('click', () => {
@@ -273,6 +283,7 @@ function renderHome() {
       });
     } else {
       document.getElementById('start-btn').addEventListener('click', () => {
+        state.blockIndex = 0;
         state.ratings = {};
         state.bonus = [];
         renderQuiz();
@@ -308,103 +319,148 @@ function questionCardHTML(q) {
   `;
 }
 
+function currentBlockQuestions() {
+  const start = state.blockIndex * BLOCK_SIZE;
+  return QUESTIONS.slice(start, start + BLOCK_SIZE);
+}
+
+function isBlockComplete(blockQuestions) {
+  return blockQuestions.every((q) => state.ratings[q.number] != null);
+}
+
 function renderQuiz() {
   paint(() => {
+    const blockQuestions = currentBlockQuestions();
+    const isFirstBlock = state.blockIndex === 0;
+    const isLastBlock = state.blockIndex + 1 >= TOTAL_BLOCKS;
+    const percentDone = Math.round((state.blockIndex / TOTAL_BLOCKS) * 100);
+    let autoAdvanceTimer = null;
+
     app.innerHTML = `
-      <div class="quiz-head">
-        <div class="quiz-head-row">
-          <span class="quiz-head-count">${answeredCount()} de ${TOTAL_QUESTIONS} respondidas</span>
-          <span class="quiz-head-bonus">Bônus: ${state.bonus.length}/${BONUS_LIMIT}</span>
-        </div>
-        <span class="progress-track"><span class="progress-fill" style="width: ${(answeredCount() / TOTAL_QUESTIONS) * 100}%"></span></span>
+      <div class="quiz-topline">
+        <span class="section-label" style="margin: 0">Bloco ${state.blockIndex + 1} de ${TOTAL_BLOCKS}</span>
+        <span class="quiz-percent">${percentDone}% concluído</span>
       </div>
-      <p class="text-muted">Dê uma nota de 1 a 6 pra cada afirmação — 1 nunca é verdadeira pra você, 6 é sempre verdadeira. No final, marque as 3 que são as mais verdadeiras pra ganhar pontos extra e liberar o resultado.</p>
+      <div class="progress-track"><span class="progress-fill" style="width: ${percentDone}%"></span></div>
+
+      <p class="quiz-hint">Dê uma nota de 1 a 6 pra cada afirmação — 1 nunca é verdadeira pra você, 6 é sempre verdadeira. Marque com ☆ as que forem uma das 3 mais verdadeiras pra ganhar pontos extra.</p>
+
       <ul class="quiz-list">
-        ${QUESTIONS.map((q) => questionCardHTML(q)).join('')}
+        ${blockQuestions.map((q) => questionCardHTML(q)).join('')}
       </ul>
-      <div class="quiz-actions no-print">
-        <button class="btn btn-ghost" id="restart-btn" type="button">Reiniciar</button>
-        <button class="btn btn-primary" id="result-btn" type="button" ${canShowResult() ? '' : 'disabled'}>Ver resultado</button>
+
+      <p class="text-muted quiz-bonus-note">Bônus marcados: ${state.bonus.length}/${BONUS_LIMIT}</p>
+
+      <div class="quiz-nav no-print">
+        <button type="button" class="btn btn-ghost" id="back-btn" ${isFirstBlock ? 'disabled' : ''}>Voltar</button>
+        <div class="quiz-nav-secondary">
+          <button type="button" class="btn btn-ghost" id="restart-btn">Reiniciar</button>
+          <button type="button" class="btn btn-primary" id="next-btn">${isLastBlock ? 'Ver resultado' : 'Próximo'}</button>
+        </div>
       </div>
     `;
-    wireQuizEvents();
-  });
-}
 
-function updateQuizHeader() {
-  document.querySelector('.quiz-head-count').textContent = `${answeredCount()} de ${TOTAL_QUESTIONS} respondidas`;
-  document.querySelector('.quiz-head-bonus').textContent = `Bônus: ${state.bonus.length}/${BONUS_LIMIT}`;
-  document.querySelector('.progress-fill').style.width = `${(answeredCount() / TOTAL_QUESTIONS) * 100}%`;
-}
+    const list = app.querySelector('.quiz-list');
+    const nextBtn = document.getElementById('next-btn');
+    const backBtn = document.getElementById('back-btn');
+    const restartBtn = document.getElementById('restart-btn');
 
-function canShowResult() {
-  return answeredCount() === TOTAL_QUESTIONS && state.bonus.length === BONUS_LIMIT;
-}
+    function canAdvance() {
+      if (!isBlockComplete(blockQuestions)) return false;
+      return !isLastBlock || state.bonus.length === BONUS_LIMIT;
+    }
 
-function updateResultButton() {
-  const btn = document.getElementById('result-btn');
-  if (btn) btn.disabled = !canShowResult();
-}
+    function refreshNav() {
+      nextBtn.disabled = !canAdvance();
+    }
+    refreshNav();
 
-function updateBonusButtons() {
-  document.querySelectorAll('[data-bonus]').forEach((btn) => {
-    const number = Number(btn.dataset.bonus);
-    const isBonus = state.bonus.includes(number);
-    const disabled = !isBonus && state.bonus.length >= BONUS_LIMIT;
-    btn.classList.toggle('tag-accent', isBonus);
-    btn.classList.toggle('tag-outline', !isBonus);
-    btn.disabled = disabled;
-    btn.textContent = isBonus ? '★ +4 pontos' : '☆ Uma das 3 mais verdadeiras';
-  });
-  document.querySelector('.quiz-head-bonus').textContent = `Bônus: ${state.bonus.length}/${BONUS_LIMIT}`;
-}
+    function refreshBonusButtons() {
+      list.querySelectorAll('[data-bonus]').forEach((btn) => {
+        const number = Number(btn.dataset.bonus);
+        const isBonus = state.bonus.includes(number);
+        const disabled = !isBonus && state.bonus.length >= BONUS_LIMIT;
+        btn.classList.toggle('tag-accent', isBonus);
+        btn.classList.toggle('tag-outline', !isBonus);
+        btn.disabled = disabled;
+        btn.textContent = isBonus ? '★ +4 pontos' : '☆ Uma das 3 mais verdadeiras';
+      });
+      document.querySelector('.quiz-bonus-note').textContent = `Bônus marcados: ${state.bonus.length}/${BONUS_LIMIT}`;
+    }
 
-function toggleBonus(number) {
-  const idx = state.bonus.indexOf(number);
-  if (idx >= 0) {
-    state.bonus.splice(idx, 1);
-  } else if (state.bonus.length < BONUS_LIMIT) {
-    state.bonus.push(number);
-  } else {
-    return;
-  }
-  saveProgress();
-  updateBonusButtons();
-  updateResultButton();
-}
+    function scheduleAutoAdvance() {
+      if (autoAdvanceTimer) {
+        clearTimeout(autoAdvanceTimer);
+        autoAdvanceTimer = null;
+      }
+      // No último bloco não avança sozinho: falta conferir o bônus antes do resultado.
+      if (!isLastBlock && isBlockComplete(blockQuestions)) {
+        autoAdvanceTimer = setTimeout(goNext, AUTO_ADVANCE_MS);
+      }
+    }
 
-function wireQuizEvents() {
-  const list = document.querySelector('.quiz-list');
-
-  list.addEventListener('change', (event) => {
-    const input = event.target;
-    if (!input.matches('input[type="radio"]')) return;
-    const li = input.closest('[data-question]');
-    state.ratings[Number(li.dataset.question)] = Number(input.value);
-    saveProgress();
-    updateQuizHeader();
-    updateResultButton();
-  });
-
-  list.addEventListener('click', (event) => {
-    const btn = event.target.closest('[data-bonus]');
-    if (!btn || btn.disabled) return;
-    toggleBonus(Number(btn.dataset.bonus));
-  });
-
-  document.getElementById('restart-btn').addEventListener('click', () => {
-    confirmReset(() => {
-      state.ratings = {};
-      state.bonus = [];
-      safeStorage.clear();
-      renderHome();
+    list.addEventListener('change', (event) => {
+      const input = event.target;
+      if (!input.matches('input[type="radio"]')) return;
+      const li = input.closest('[data-question]');
+      state.ratings[Number(li.dataset.question)] = Number(input.value);
+      saveProgress();
+      refreshNav();
+      scheduleAutoAdvance();
     });
-  });
 
-  document.getElementById('result-btn').addEventListener('click', () => {
-    if (!canShowResult()) return;
-    safeStorage.clear();
-    renderResult();
+    list.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-bonus]');
+      if (!btn || btn.disabled) return;
+      const number = Number(btn.dataset.bonus);
+      const idx = state.bonus.indexOf(number);
+      if (idx >= 0) {
+        state.bonus.splice(idx, 1);
+      } else if (state.bonus.length < BONUS_LIMIT) {
+        state.bonus.push(number);
+      } else {
+        return;
+      }
+      saveProgress();
+      refreshBonusButtons();
+      refreshNav();
+    });
+
+    function goNext() {
+      if (autoAdvanceTimer) {
+        clearTimeout(autoAdvanceTimer);
+        autoAdvanceTimer = null;
+      }
+      if (!canAdvance()) return;
+      if (isLastBlock) {
+        safeStorage.clear();
+        renderResult();
+        return;
+      }
+      state.blockIndex += 1;
+      saveProgress();
+      renderQuiz();
+    }
+    nextBtn.addEventListener('click', goNext);
+
+    backBtn.addEventListener('click', () => {
+      if (state.blockIndex === 0) return;
+      if (autoAdvanceTimer) clearTimeout(autoAdvanceTimer);
+      state.blockIndex -= 1;
+      saveProgress();
+      renderQuiz();
+    });
+
+    restartBtn.addEventListener('click', () => {
+      if (autoAdvanceTimer) clearTimeout(autoAdvanceTimer);
+      confirmReset(() => {
+        state.blockIndex = 0;
+        state.ratings = {};
+        state.bonus = [];
+        safeStorage.clear();
+        renderHome();
+      });
+    });
   });
 }
 
@@ -485,6 +541,7 @@ function renderResult() {
 
     document.getElementById('restart-btn').addEventListener('click', () => {
       confirmReset(() => {
+        state.blockIndex = 0;
         state.ratings = {};
         state.bonus = [];
         safeStorage.clear();

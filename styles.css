@@ -352,22 +352,25 @@ medida fixa fora deles. Ver AGENTS.md.
   border: 1px solid var(--color-accent);
 }
 
-/* — barra de progresso do quiz (não existe no design system) — */
-.quiz-head {
-  position: sticky; top: 0; z-index: 1; padding: var(--space-3) 0;
-  background: color-mix(in srgb, var(--color-bg) 92%, transparent);
-  backdrop-filter: blur(6px);
+/* — progresso do quiz por blocos (não existe pronto no design system) — */
+.section-label {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--color-neutral-500); margin: 0 0 var(--space-3);
 }
-.quiz-head-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); font-size: 13px; }
-.quiz-head-count { font-family: var(--font-heading); }
-.quiz-head-bonus { opacity: 0.7; }
+.quiz-topline { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-2); }
+.quiz-percent { font-size: 13px; color: var(--color-accent-300); }
 .progress-track {
-  height: 6px; border-radius: 999px; margin-top: var(--space-2);
-  background: var(--color-neutral-800); overflow: hidden;
+  height: 3px; border-radius: 2px; margin-bottom: var(--space-6);
+  background: var(--color-neutral-900); overflow: hidden;
 }
-.progress-fill { height: 100%; background: var(--color-accent); border-radius: inherit; transition: width 160ms ease; }
+.progress-fill {
+  display: block; height: 100%; background: var(--color-accent);
+  box-shadow: 0 0 12px var(--color-accent-600); transition: width 240ms ease;
+}
+.quiz-hint { margin: 0 0 var(--space-4); color: var(--color-neutral-500); font-size: 14px; }
 
-.quiz-list { display: grid; gap: var(--space-3); margin: var(--space-4) 0 var(--space-6); padding: 0; list-style: none; }
+.quiz-list { display: grid; gap: var(--space-3); margin: 0 0 var(--space-4); padding: 0; list-style: none; }
 .quiz-card { gap: var(--space-3); }
 .quiz-card-number { font-size: 11px; }
 .quiz-card-text { font-size: 15px; opacity: 1; }
@@ -379,7 +382,10 @@ medida fixa fora deles. Ver AGENTS.md.
 }
 .bonus-toggle:disabled { opacity: 0.35; cursor: not-allowed; }
 
-.quiz-actions { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-4); }
+.quiz-bonus-note { margin: 0 0 var(--space-2); }
+
+.quiz-nav { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-4); }
+.quiz-nav-secondary { display: flex; align-items: center; gap: var(--space-2); }
 
 /* — barras do gráfico de resultado (mono-acento, comprimento = pontuação) — */
 .result-bars { display: grid; gap: var(--space-3); margin: var(--space-6) 0; }
@@ -404,5 +410,4 @@ medida fixa fora deles. Ver AGENTS.md.
   * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   #app { opacity: 1 !important; transform: none !important; }
   .no-print { display: none !important; }
-  .quiz-head { position: static; backdrop-filter: none; }
 }

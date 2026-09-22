@@ -69,6 +69,10 @@ próprio usuário (fórmulas `SOMA`/`÷5` batendo com o que está implementado e
   `QUESTIONS` (as 40 afirmações, já com a âncora resolvida).
 - `app.js` — toda a lógica: as 3 telas (home, quiz, resultado), cálculo das
   médias, persistência em `localStorage`, diálogo de confirmação, compartilhar.
+  O quiz é paginado em blocos de `BLOCK_SIZE = 4` perguntas
+  (`TOTAL_BLOCKS = 10`), com barra de progresso e navegação Voltar/Próximo —
+  avança sozinho ao terminar um bloco (menos o último, que espera o clique
+  em "Ver resultado" pra dar tempo de conferir o bônus).
 
 Não há `package.json` nem etapa de build. O app abre direto pelo
 `index.html` ou por qualquer servidor estático.
@@ -109,11 +113,15 @@ Não há suíte de testes automatizados persistida no repositório. Ao mexer no
 código, valide manualmente — ou com o MCP do Playwright/Browser, se
 disponível — percorrendo:
 
-1. Fluxo completo: home → 40 perguntas → resultado.
-2. "Ver resultado" só habilita com as 40 notas preenchidas **e** exatamente
-   3 itens de bônus marcados; um 4º item de bônus não pode ser marcado
-   enquanto 3 já estiverem marcados; desmarcar um bônus (ficando com menos
-   de 3) desabilita "Ver resultado" de novo.
+1. Fluxo completo: home → 10 blocos de 4 perguntas → resultado. "Próximo"
+   só habilita com as 4 notas do bloco atual preenchidas, e avança sozinho
+   pouco depois de a última ficar completa; "Voltar" funciona em qualquer
+   bloco que não seja o primeiro e preserva as respostas já dadas.
+2. No último bloco, "Ver resultado" só habilita com as 40 notas preenchidas
+   **e** exatamente 3 itens de bônus marcados (em qualquer bloco); um 4º
+   item de bônus não pode ser marcado enquanto 3 já estiverem marcados;
+   desmarcar um bônus (ficando com menos de 3) desabilita "Ver resultado"
+   de novo, e o último bloco não avança sozinho — espera o clique manual.
 3. Na tela de resultado, os cards de "Descrição das 8 âncoras" aparecem na
    mesma ordem das barras/tabela — da maior média pra menor, não na ordem
    fixa A→H.
