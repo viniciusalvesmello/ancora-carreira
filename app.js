@@ -14,7 +14,7 @@ const app = document.getElementById('app');
 
 const state = {
   ratings: {}, // { [questionNumber]: 1..6 }
-  bonus: [], // até 3 números de pergunta
+  bonus: [], // números de pergunta marcados como bônus (precisa ter exatamente BONUS_LIMIT pra liberar o resultado)
 };
 
 // ---------- Transição entre telas (fade) ----------
@@ -254,7 +254,7 @@ function renderHome() {
       <h2>Como funciona</h2>
       <ol class="steps">
         <li>Leia as 40 afirmações e dê uma nota de 1 a 6 pra cada uma, conforme o quanto ela é verdadeira pra você.</li>
-        <li>No final, marque até 3 afirmações — as mais verdadeiras entre as que você pontuou mais alto — para ganharem 4 pontos extra cada.</li>
+        <li>No final, marque as 3 afirmações mais verdadeiras entre as que você pontuou mais alto — elas ganham 4 pontos extra cada e liberam o resultado.</li>
         <li>Veja o resultado: a média de cada uma das 8 âncoras e qual delas mais te representa.</li>
       </ol>
     `;
@@ -318,13 +318,13 @@ function renderQuiz() {
         </div>
         <span class="progress-track"><span class="progress-fill" style="width: ${(answeredCount() / TOTAL_QUESTIONS) * 100}%"></span></span>
       </div>
-      <p class="text-muted">Dê uma nota de 1 a 6 pra cada afirmação — 1 nunca é verdadeira pra você, 6 é sempre verdadeira. No final, marque até 3 que são as mais verdadeiras pra ganhar pontos extra.</p>
+      <p class="text-muted">Dê uma nota de 1 a 6 pra cada afirmação — 1 nunca é verdadeira pra você, 6 é sempre verdadeira. No final, marque as 3 que são as mais verdadeiras pra ganhar pontos extra e liberar o resultado.</p>
       <ul class="quiz-list">
         ${QUESTIONS.map((q) => questionCardHTML(q)).join('')}
       </ul>
       <div class="quiz-actions no-print">
         <button class="btn btn-ghost" id="restart-btn" type="button">Reiniciar</button>
-        <button class="btn btn-primary" id="result-btn" type="button" ${answeredCount() < TOTAL_QUESTIONS ? 'disabled' : ''}>Ver resultado</button>
+        <button class="btn btn-primary" id="result-btn" type="button" ${canShowResult() ? '' : 'disabled'}>Ver resultado</button>
       </div>
     `;
     wireQuizEvents();
@@ -337,9 +337,13 @@ function updateQuizHeader() {
   document.querySelector('.progress-fill').style.width = `${(answeredCount() / TOTAL_QUESTIONS) * 100}%`;
 }
 
+function canShowResult() {
+  return answeredCount() === TOTAL_QUESTIONS && state.bonus.length === BONUS_LIMIT;
+}
+
 function updateResultButton() {
   const btn = document.getElementById('result-btn');
-  if (btn) btn.disabled = answeredCount() < TOTAL_QUESTIONS;
+  if (btn) btn.disabled = !canShowResult();
 }
 
 function updateBonusButtons() {
@@ -366,6 +370,7 @@ function toggleBonus(number) {
   }
   saveProgress();
   updateBonusButtons();
+  updateResultButton();
 }
 
 function wireQuizEvents() {
@@ -397,7 +402,7 @@ function wireQuizEvents() {
   });
 
   document.getElementById('result-btn').addEventListener('click', () => {
-    if (answeredCount() < TOTAL_QUESTIONS) return;
+    if (!canShowResult()) return;
     safeStorage.clear();
     renderResult();
   });
@@ -461,7 +466,7 @@ function renderResult() {
 
       <h2>Descrição das 8 âncoras</h2>
       <div class="anchor-list">
-        ${ANCHOR_ORDER.map(
+        ${sortedLetters.map(
           (letter) => `
         <div class="card elev-sm">
           <span class="card-kicker">${letter} · ${averages[letter].toFixed(1)}</span>

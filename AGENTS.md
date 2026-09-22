@@ -46,9 +46,11 @@ querer (ver `app.js`).
   pertence à âncora no índice `(n - 1) % 8` da lista
   `['A','B','C','D','E','F','G','H']` — cada âncora acaba com exatamente 5
   itens (ex.: `A` = itens 1, 9, 17, 25, 33; `H` = itens 8, 16, 24, 32, 40).
-- **Bônus**: ao final, o usuário marca até 3 itens (normalmente os que deu
-  nota mais alta) como "as mais verdadeiras pra ele"; cada um ganha +4 pontos
-  extra (`BONUS_POINTS` em `app.js`), limitado a `BONUS_LIMIT = 3` itens.
+- **Bônus**: ao final, o usuário marca exatamente 3 itens (normalmente os que
+  deu nota mais alta) como "as mais verdadeiras pra ele"; cada um ganha +4
+  pontos extra (`BONUS_POINTS` em `app.js`). `BONUS_LIMIT = 3` é tanto o
+  máximo quanto o mínimo exigido — `canShowResult()` só libera "Ver
+  resultado" com as 40 notas preenchidas **e** os 3 itens de bônus marcados.
 - **Média por âncora**: soma dos 5 itens daquela âncora (nota + bônus quando
   marcado) dividida por 5 (`computeAverages` em `app.js`). A âncora com maior
   média é a dominante; em caso de empate, desempata pela ordem `ANCHOR_ORDER`
@@ -108,18 +110,23 @@ código, valide manualmente — ou com o MCP do Playwright/Browser, se
 disponível — percorrendo:
 
 1. Fluxo completo: home → 40 perguntas → resultado.
-2. "Ver resultado" só habilita com as 40 notas preenchidas; um 4º item de
-   bônus não pode ser marcado enquanto 3 já estiverem marcados.
-3. Persistência: responder parte das perguntas, recarregar a página,
+2. "Ver resultado" só habilita com as 40 notas preenchidas **e** exatamente
+   3 itens de bônus marcados; um 4º item de bônus não pode ser marcado
+   enquanto 3 já estiverem marcados; desmarcar um bônus (ficando com menos
+   de 3) desabilita "Ver resultado" de novo.
+3. Na tela de resultado, os cards de "Descrição das 8 âncoras" aparecem na
+   mesma ordem das barras/tabela — da maior média pra menor, não na ordem
+   fixa A→H.
+4. Persistência: responder parte das perguntas, recarregar a página,
    confirmar que aparece o banner de retomada com a contagem certa; concluir
    o teste e confirmar que o `localStorage` foi limpo.
-4. Diálogo de reiniciar (home e quiz): abre o `.dialog`, cancelar não apaga
+5. Diálogo de reiniciar (home e quiz): abre o `.dialog`, cancelar não apaga
    nada, confirmar limpa o progresso e volta pra home.
-5. Compartilhar: os 3 caminhos (Web Share API, clipboard com "Copiado!",
+6. Compartilhar: os 3 caminhos (Web Share API, clipboard com "Copiado!",
    `prompt` de último recurso).
-6. Impressão: preview de impressão na tela de resultado, controles com
+7. Impressão: preview de impressão na tela de resultado, controles com
    `.no-print` somem.
-7. Responsividade em viewport mobile.
+8. Responsividade em viewport mobile.
 
 ## O que evitar
 
